@@ -19,3 +19,90 @@ export async function createCompanion(formData: CreateCompanion) {
 }
 
 
+
+export async function getAllCompanions({ limit = 10, page = 1, subject, topic }: GetAllCompanions) {
+
+
+    const supabase = createSupabaseClient();
+
+    let query = supabase.from("companions").select();
+
+    if (subject && topic) {
+        query = query.ilike("subject", `%${subject}%`).or(`topic.ilike.%${topic}%,name.ilike.%${topic}%`)
+    } else if (subject) {
+        query = query.like("subject", `%${subject}%`)
+    } else if (topic) {
+        query = query.or(`topic.ilike.%${topic}%,name.ilike.%${topic}%`)
+    }
+
+    query = query.range((page - 1) * limit, page * limit - 1)
+
+    const { data: companions, error } = await query;
+
+    if (error) throw new Error(error.message || "Failed to get companions")
+
+    return companions
+
+}
+
+
+export async function getCompanion(id: string) {
+
+    const supabase = createSupabaseClient();
+
+    const { data, error } = await supabase.from("companions").select().eq("id", id);
+
+    if (error) throw new Error(error.message || "Failed to get companion");
+
+    return data[0];
+
+}
+
+export async function addToSessionHistory(companionId: string) {
+
+    const { userId } = await auth()
+    const supabase = createSupabaseClient();
+
+    const { data, error } = await supabase.from("session_history").insert({ companion_id: companionId, user_id: userId })
+
+
+    if (error) throw new Error(error.message);
+
+    return data
+}
+
+export async function getRecentSessions(limit = 10) {
+
+    const supabase = createSupabaseClient();
+
+    const { data, error } = await supabase.from("session_history").select(`companions:companion_id (*)`).order("created_at", { ascending: false }).limit(limit)
+
+
+    if (error) throw new Error(error.message);
+
+    return data.map(({ companions }) => companions)
+}
+
+
+export async function getUserSessions(userId: string, limit = 10) {
+
+    const supabase = createSupabaseClient();
+
+    const { data, error } = await supabase.from("session_history").select(`companions:companion_id (*)`).eq("user_id", userId).order("created_at", { ascending: false }).limit(limit)
+
+
+    if (error) throw new Error(error.message);
+
+    return data.map(({ companions }) => companions)
+}
+
+export async function getUserCompanions(userId: string) {
+
+    const supabase = createSupabaseClient();
+
+    const { data, error } = await supabase.from("companions").select().eq("author", userId)
+
+    if (error) throw new Error(error.message);
+
+    return data
+}
